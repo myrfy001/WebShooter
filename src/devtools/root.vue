@@ -7,6 +7,8 @@
       inactive-text="Disable JS"
       @change="change_javascript_enable">
     </el-switch>
+    <el-button @click="() => handleImport()">导入</el-button>
+    <el-button @click="() => handleExport()" >导出</el-button>
   </div>
   <div class="block">
     <el-tree
@@ -17,51 +19,83 @@
       :expand-on-click-node="false"
       :allow-drop="check_tree_allow_drop">
       <span class="custom-tree-node" slot-scope="{ node, data }">
-        <el-select v-model="data.fieldtype" placeholder="请选择" :style="{width:'10%'}">
-                <el-option label="-分组" value="f_group"></el-option>
+        <el-select v-model="data.fieldtype" placeholder="请选择" :style="{width:'15%'}">
+                <el-option label="(分组" value="f_group"></el-option>
+                <el-option label="+包含" value="f_include"></el-option>
+                <el-option label="-排除" value="f_exclude"></el-option>
                 <el-option label="字符串" value="v_string"></el-option>
                 <el-option label="整数" value="v_int"></el-option>
                 <el-option label="浮点" value="v_float"></el-option>
                 <el-option label="日期" value="v_date"></el-option>
         </el-select>
         <el-input placeholder="请输入字段名" v-model="data.fieldname" :style="{width:'15%'}"></el-input>
-        <el-input placeholder="请输入Xpath" v-model="data.xpath" :style="{width:'75%'}">
-          <el-button slot="append" icon="el-icon-search" @click="() => enterXpathSelectMode(data)"></el-button>
+        <el-input placeholder="请输入Xpath" v-model="data.xpath" :style="{width:'70%'}" :disabled="data.fieldtype==='f_group'" @mousemove="() => handleHighlightHover(node, data)">
+          <el-button slot="append" icon="el-icon-check" :disabled="data.fieldtype==='f_group'" @click="() => getSelectedNodeXpath(node, data)"></el-button>
         </el-input>
-        
-
+  
         <span>
           <el-button
-            type="text"
             size="mini"
+            icon="el-icon-circle-plus"
+            circle
+            style='margin:0px;'
             @click="() => append(node, data)">
-            Append
           </el-button>
           <el-button
-            type="text"
             size="mini"
+            icon="el-icon-d-arrow-right"
+            circle
+            style='margin:0px;'
+            @click="() => addChild(node, data)">
+          </el-button>
+          <el-button
+            size="mini"
+            icon="el-icon-remove"
+            circle
+            style='margin:0px;'
             @click="() => remove(node, data)">
-            Delete
           </el-button>
           <el-button
-            type="text"
             size="mini"
-            @click="() => handleHighlightSelected(node, data)">
-            View
+            icon="el-icon-search"
+            circle
+            style='margin:0px;'
+            @click="() => handleHighlightHover(node, data)">
           </el-button>
         </span>
       </span>
     </el-tree>
   </div>
+  <el-dialog
+  title="提示"
+  :visible.sync="visibleImportExport"
+  width="100%">
+  <el-input
+    type="textarea"
+    :autosize="{ minRows: 5, maxRows: 20}"
+    placeholder="请粘贴数据"
+    v-model="importExportData">
+  </el-input>
+  <span slot="footer" class="dialog-footer">
+    <el-button type="primary" @click="handleCloseImportExportBox">关闭</el-button>
+  </span>
+</el-dialog>
 </div>
 </template>
 
 <script>
-  // import getXpath from '../ext/xpath.js'
-  let id = 1000
+  import { generateExportData } from '../ext/import_export'
+  import {generateTreeLevelSelectRuleFromTreeData} from '../ext/tree_level_selector'
+  import { Base64 } from 'js-base64'
   const backgroundPageConnection = chrome.runtime.connect({
     name: 'web-shooter-comm-port'
   })
+
+  function uuidv4 () {
+    return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+      (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+    )
+  }
 
   export default {
     data () {
@@ -69,13 +103,17 @@
         id: 1,
         fieldname: 'root',
         xpath: '',
-        fieldtype: 'f_group'
+        fieldtype: 'f_group',
+        children: []
       }]
       return {
         main_data: JSON.parse(JSON.stringify(mainData)),
         javascript_enabled: true,
         ready: false,
-        current_modifying_tree_node: null
+        importExportData: '',
+        visibleImportExport: false,
+        importExportType: 'import'
+
       }
     },
     created () {
@@ -93,7 +131,13 @@
     },
     methods: {
       append (node, data) {
-        const newChild = { id: id++, label: 'testtest', children: [] }
+        const newChild = { id: uuidv4(), label: 'testtest', children: [] }
+        const parentData = node.parent.data.children || node.parent.data
+        parentData.push(newChild)
+      },
+
+      addChild (node, data) {
+        const newChild = { id: uuidv4(), label: 'testtest', children: [] }
         if (!data.children) {
           this.$set(data, 'children', [])
         }
@@ -150,23 +194,46 @@
 
       handleDomSelectUpdate () {
         console.log('handleDomSelectUpdate')
-        chrome.devtools.inspectedWindow.eval('generateAbsXpath($0)', {useContentScriptContext: true}, (xpath) => {
-          if (this.current_modifying_tree_node) {
-            this.current_modifying_tree_node.xpath = xpath
-            this.current_modifying_tree_node = null
-          }
+      },
+
+      getSelectedNodeXpath (node, data) {
+        let relativeRootInfo = generateTreeLevelSelectRuleFromTreeData(node.parent, [])
+        let b64 = Base64.encode(JSON.stringify(relativeRootInfo))
+        chrome.devtools.inspectedWindow.eval('_generateRelXpath($0,"' + b64 + '")', {useContentScriptContext: true}, () => {
+          // this.$set(data, 'xpath', xpath)
+          // console.log(this.main_data)
         })
       },
 
-      enterXpathSelectMode (data) {
-        this.current_modifying_tree_node = data
-      },
-
-      handleHighlightSelected (node, data) {
+      handleHighlightHover (node, data) {
         console.log('123123')
-        chrome.devtools.inspectedWindow.eval('highlightByXpath(["/html[1]/body[1]/div[2]/form[1]/div[1]"], [], [], [], [])', {useContentScriptContext: true}, (result) => {
-          console.log(result)
+        let ret = generateTreeLevelSelectRuleFromTreeData(node, [])
+        backgroundPageConnection.postMessage({
+          tabId: chrome.devtools.inspectedWindow.tabId,
+          name: 'highlight_node',
+          rules: ret
         })
+      },
+
+      handleImport () {
+        this.importExportType = 'import'
+        this.importExportData = ''
+        this.visibleImportExport = true
+      },
+
+      handleExport () {
+        this.importExportType = 'export'
+        const ret = generateExportData(this.main_data)
+        this.importExportData = JSON.stringify(ret)
+        this.visibleImportExport = true
+      },
+
+      handleCloseImportExportBox () {
+        if (this.importExportType === 'import') {
+          const data = JSON.parse(this.importExportData)
+          this.main_data = data.main_data
+        }
+        this.visibleImportExport = false
       }
     }
   }
@@ -184,7 +251,11 @@
 
   .el-tree-node__content{
     height:200%;
-  } 
+  }
+
+  .el-input {
+    pointer-events: auto
+  }
 
 
 

@@ -1,0 +1,136 @@
+// The following code comes from https://github.com/junejan143/ChroPath
+
+function formRelXpath (element) {
+  if (!element) {
+    return 'element is inside iframe & it is not supported by ChroPath currently. Please write xpath manually.'
+  }
+
+  var innerText = element.textContent.trim().slice(0, 50)
+  var tagName = element.tagName.toLowerCase()
+
+  if (tagName.includes('svg')) {
+    tagName = '*'
+  }
+
+  if (tagName.includes('html')) {
+    return '/html' + this.tempXpath
+  }
+  var attr = ''
+  var attrValue = ''
+  var listOfAttr = {}
+  if (element.id !== '') {
+    this.tempXpath = '//' + tagName + "[@id='" + element.id + "']" + this.tempXpath  
+    return this.tempXpath
+  } else if (element.attributes.length !== 0) {
+    for (var i = 0; i < element.attributes.length; i++) {
+      attr = element.attributes[i].name
+      attrValue = element.attributes[i].nodeValue
+      if (attrValue != null && attrValue !== '' && !attr.includes('style') && !attr.includes('xpath') && !attr.includes('href') && !attr.includes('src')) {
+        listOfAttr[attr] = attrValue
+      }
+    }
+    if ('placeholder' in listOfAttr) {
+      attr = 'placeholder'
+    } else if ('title' in listOfAttr) {
+      attr = 'title'
+    } else if ('value' in listOfAttr) {
+      attr = 'value'
+    } else if ('name' in listOfAttr) {
+      attr = 'name'
+    } else if ('type' in listOfAttr) {
+      attr = 'type'
+    } else if ('class' in listOfAttr) {
+      attr = 'class'
+    } else {
+      attr = Object.keys(listOfAttr)[0]
+    }
+    attrValue = listOfAttr[attr]
+    if (attrValue != null && attrValue !== '') {
+      var xpathWithAttribute = ''
+      if (attrValue.includes(' ')) {
+        attrValue = attrValue.split(' ')[attrValue.split(' ').length - 1]
+      }
+      if (attrValue.includes("'")) {
+        xpathWithAttribute = '//' + tagName + '[contains(@' + attr + ',"' + attrValue.trim() + '")]' + this.tempXpath
+      } else {
+        xpathWithAttribute = '//' + tagName + '[contains(@' + attr + ",'" + attrValue.trim() + "')]" + this.tempXpath
+      }
+      var totalMatch = document.evaluate(xpathWithAttribute, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength
+      return xpathWithAttribute
+    }
+  }
+  this.tempXpath = '//' + tagName + this.tempXpath
+  var ix = 0
+
+  var siblings = element.parentNode.childNodes
+  for (var i = 0; i < siblings.length; i++) {
+    var sibling = siblings[i]
+    if (sibling === element) {
+      indexes.push(ix + 1)
+      this.tempXpath = formRelXpath(element.parentNode)
+      if (!this.tempXpath.includes("/")) {
+        return this.tempXpath
+      } else {
+        var totalMatch = document.evaluate(this.tempXpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength
+        if (totalMatch === 1) {
+          return this.tempXpath
+        } else {
+          this.tempXpath = "/" + this.tempXpath.replace(/\/\/+/g, '/')
+          var regSlas = /\/+/g
+          var regBarces = /[^[\]]+(?=])/g; ////this is to get content inside all []
+          while ((match = regSlas.exec(this.tempXpath)) != null) {
+            matchIndex.push(match.index)
+          }
+          for (var j = 0; j < indexes.length; j++) {
+            if (j === 0) {
+              var lastTag = this.tempXpath.slice(matchIndex[matchIndex.length - 1])
+              if ((match = regBarces.exec(lastTag)) != null) {
+                lastTag = lastTag.replace(regBarces, indexes[j]).split("]")[0] + "]"
+                this.tempXpath = this.tempXpath.slice(0, matchIndex[matchIndex.length - 1]) + lastTag
+              } else {
+                this.tempXpath = this.tempXpath + "[" + indexes[j] + "]"
+              }
+            } else {
+              var lastTag = this.tempXpath.slice(matchIndex[matchIndex.length - (j + 1)], matchIndex[matchIndex.length - (j)])
+              if ((match = regBarces.exec(lastTag)) != null) {
+                lastTag = lastTag.replace(regBarces, indexes[j])
+                this.tempXpath = this.tempXpath.slice(0, matchIndex[matchIndex.length - (j + 1)]) + lastTag + this.tempXpath.slice(matchIndex[matchIndex.length - j])
+              } else {
+                this.tempXpath = this.tempXpath.slice(0, matchIndex[matchIndex.length - j]) + "[" + indexes[j] + "]" + this.tempXpath.slice(matchIndex[matchIndex.length - j])
+              }
+            }
+            var totalMatch = document.evaluate(this.tempXpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength
+            if (totalMatch === 1) {
+              var regSlashContent = /([a-zA-Z])([^/]*)/g; //this regex is different for Chrome
+              var length = this.tempXpath.match(regSlashContent).length
+              for (var k = j + 1; k < length - 1; k++) {
+                var lastTag = this.tempXpath.match(/\/([^\/]+)\/?$/)[1]
+                var arr = this.tempXpath.match(regSlashContent)
+                arr.splice(length - k, 1, '/')
+                var relXpath = ""
+                for (var i = 0; i < arr.length; i++) {
+                  if (arr[i]) {
+                    relXpath = relXpath + "/" + arr[i]
+                  } else {
+                    relXpath = relXpath + "//" + arr[i]
+                  }
+                }
+                relXpath = (relXpath + "/" + lastTag).replace(/\/\/+/g, '//'); //replace more than 2 forward slashes to double slash
+                relXpath = relXpath.replace(/\/\/+/g, '/'); //replace double forward slashes to single slash
+                relXpath = relXpath.replace(/\/+/g, "//"); //replace double forward slashes to single slash
+                var totalMatch = document.evaluate(relXpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotLength
+                if (totalMatch === 1) {
+                  this.tempXpath = relXpath
+                }
+              }
+              return this.tempXpath.replace('//html', '')
+            }
+          }
+        }
+      }
+    }
+    if (sibling.nodeType === 1 && sibling.tagName.toLowerCase() === element.tagName.toLowerCase()) {
+      ix++
+    }
+  }
+}

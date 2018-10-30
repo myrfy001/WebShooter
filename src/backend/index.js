@@ -1,6 +1,9 @@
 console.log('background !')
 
 var connections = {}
+var messageToContentScript = function (message) {
+  chrome.tabs.sendMessage(message.tabId, message)
+}
 
 chrome.runtime.onConnect.addListener(function (port) {
   if (port.name !== 'web-shooter-comm-port') {
@@ -13,6 +16,8 @@ chrome.runtime.onConnect.addListener(function (port) {
     if (message.name === 'init') {
       connections[message.tabId] = port
       // return
+    } else {
+      messageToContentScript(message)
     }
 
     // other message handling
