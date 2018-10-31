@@ -12,11 +12,11 @@ document.body.appendChild(style)
 
 window._generateRelXpath = function (element, relativeRootInfo) {
   relativeRootInfo = JSON.parse(Base64.decode(relativeRootInfo))
-  console.log(relativeRootInfo)
+  console.log('relativeRootInfo', relativeRootInfo)
   let selectedNodes = selectElementByTreeLevelSelectRule(relativeRootInfo, [])
-  console.log(selectedNodes)
+  console.log('selectedNodes', selectedNodes)
   let xpath = generateRelXpath(element, selectedNodes)
-  console.log(xpath)
+  console.log('xpath', xpath)
   return xpath
 }
 

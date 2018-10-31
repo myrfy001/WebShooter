@@ -1,10 +1,10 @@
 
-export function generateStractorSelectorRule (levelDataIn, groupNmae) {
+export function generateStractorSelectorRule (groupChildren, groupNmae) {
   let include = []
   let exclude = []
   let value = []
   let children = []
-  for (const row of levelDataIn) {
+  for (const row of groupChildren) {
     if (row.fieldtype === 'f_group') {
       children.push(generateStractorSelectorRule(row.children, row.fieldname))
     } else if (row.fieldtype === 'f_include') {

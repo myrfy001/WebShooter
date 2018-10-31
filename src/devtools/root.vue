@@ -19,7 +19,7 @@
       :expand-on-click-node="false"
       :allow-drop="check_tree_allow_drop">
       <span class="custom-tree-node" slot-scope="{ node, data }">
-        <el-select v-model="data.fieldtype" placeholder="请选择" :style="{width:'15%'}">
+        <el-select v-model="data.fieldtype" placeholder="请选择" :style="{width:'6em'}">
                 <el-option label="(分组" value="f_group"></el-option>
                 <el-option label="+包含" value="f_include"></el-option>
                 <el-option label="-排除" value="f_exclude"></el-option>
@@ -28,8 +28,8 @@
                 <el-option label="浮点" value="v_float"></el-option>
                 <el-option label="日期" value="v_date"></el-option>
         </el-select>
-        <el-input placeholder="请输入字段名" v-model="data.fieldname" :style="{width:'15%'}"></el-input>
-        <el-input placeholder="请输入Xpath" v-model="data.xpath" :style="{width:'70%'}" :disabled="data.fieldtype==='f_group'" @mousemove="() => handleHighlightHover(node, data)">
+        <el-input placeholder="请输入字段名" v-model="data.fieldname" :style="{width:'20em'}"></el-input>
+        <el-input placeholder="请输入Xpath" v-model="data.xpath" :disabled="data.fieldtype==='f_group'" @mousemove="() => handleHighlightHover(node, data)">
           <el-button slot="append" icon="el-icon-check" :disabled="data.fieldtype==='f_group'" @click="() => getSelectedNodeXpath(node, data)"></el-button>
         </el-input>
   
@@ -108,6 +108,7 @@
       }]
       return {
         main_data: JSON.parse(JSON.stringify(mainData)),
+        last_main_data: JSON.parse(JSON.stringify(mainData)),
         javascript_enabled: true,
         ready: false,
         importExportData: '',
@@ -116,12 +117,25 @@
 
       }
     },
+    watch: {
+      main_data: {
+        handler: function (new_, old_) {
+          let err = this.validMainData(new_)
+          if (err !== '') {
+            this.$nextTick(() => { this.main_data = this.last_main_data })
+            this.$alert(err, '错误')
+          } else {
+            this.last_main_data = JSON.parse(JSON.stringify(new_))
+          }
+        },
+        deep: true
+      }
+    },
     created () {
       this.getJavascriptStatus()
       chrome.devtools.panels.elements.onSelectionChanged.addListener(
         this.handleDomSelectUpdate.bind(this))
       backgroundPageConnection.onMessage.addListener((message) => {
-        console.log('qqq')
         console.log(message)
       })
       backgroundPageConnection.postMessage({
@@ -131,13 +145,13 @@
     },
     methods: {
       append (node, data) {
-        const newChild = { id: uuidv4(), label: 'testtest', children: [] }
+        const newChild = { id: uuidv4(), children: [] }
         const parentData = node.parent.data.children || node.parent.data
         parentData.push(newChild)
       },
 
       addChild (node, data) {
-        const newChild = { id: uuidv4(), label: 'testtest', children: [] }
+        const newChild = { id: uuidv4(), children: [] }
         if (!data.children) {
           this.$set(data, 'children', [])
         }
@@ -198,6 +212,14 @@
 
       getSelectedNodeXpath (node, data) {
         let relativeRootInfo = generateTreeLevelSelectRuleFromTreeData(node.parent, [])
+        // if node is the top level node, relativeRootInfo is []
+        if (relativeRootInfo.length === 0) {
+          relativeRootInfo = {
+            includes: [],
+            excludes: [],
+            children: []
+          }
+        }
         console.log('relativeRootInfo', relativeRootInfo)
         let b64 = Base64.encode(JSON.stringify(relativeRootInfo))
         chrome.devtools.inspectedWindow.eval('_generateRelXpath($0,"' + b64 + '")', {useContentScriptContext: true}, (xpath) => {
@@ -207,6 +229,7 @@
 
       handleHighlightHover (node, data) {
         let ret = generateTreeLevelSelectRuleFromTreeData(node, [])
+        ret = ret[0]
         console.log(ret)
         backgroundPageConnection.postMessage({
           tabId: chrome.devtools.inspectedWindow.tabId,
@@ -234,6 +257,20 @@
           this.main_data = data.main_data
         }
         this.visibleImportExport = false
+      },
+
+      validMainData (data) {
+        let err = ''
+        for (let row of data) {
+          if (row.children.length !== 0) {
+            if (row.fieldtype !== 'f_group') {
+              err = '只有分组才可以有子节点'
+              break
+            }
+            err = this.validMainData(row.children)
+          }
+        }
+        return err
       }
     }
   }
