@@ -198,16 +198,16 @@
 
       getSelectedNodeXpath (node, data) {
         let relativeRootInfo = generateTreeLevelSelectRuleFromTreeData(node.parent, [])
+        console.log('relativeRootInfo', relativeRootInfo)
         let b64 = Base64.encode(JSON.stringify(relativeRootInfo))
-        chrome.devtools.inspectedWindow.eval('_generateRelXpath($0,"' + b64 + '")', {useContentScriptContext: true}, () => {
-          // this.$set(data, 'xpath', xpath)
-          // console.log(this.main_data)
+        chrome.devtools.inspectedWindow.eval('_generateRelXpath($0,"' + b64 + '")', {useContentScriptContext: true}, (xpath) => {
+          this.$set(data, 'xpath', xpath)
         })
       },
 
       handleHighlightHover (node, data) {
-        console.log('123123')
         let ret = generateTreeLevelSelectRuleFromTreeData(node, [])
+        console.log(ret)
         backgroundPageConnection.postMessage({
           tabId: chrome.devtools.inspectedWindow.tabId,
           name: 'highlight_node',

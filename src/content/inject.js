@@ -17,6 +17,7 @@ window._generateRelXpath = function (element, relativeRootInfo) {
   console.log(selectedNodes)
   let xpath = generateRelXpath(element, selectedNodes)
   console.log(xpath)
+  return xpath
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

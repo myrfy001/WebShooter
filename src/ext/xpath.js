@@ -35,7 +35,6 @@ export function generateAbsXpath (element) {
 }
 
 export function generateRelXpath (element, relativeRoots) {
-  console.log('relativeRoots', relativeRoots)
   if (!element) {
     return 'element is inside iframe & it is not supported by ChroPath currently. Please write xpath manually.'
   }
