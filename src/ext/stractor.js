@@ -29,7 +29,7 @@ export function generateStractorSelectorRule (groupChildren, groupNmae) {
   }
 
   const result = {
-    name: groupNmae,
+    name: groupNmae || '',
     include,
     remove: exclude,
     value,

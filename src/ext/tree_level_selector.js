@@ -133,7 +133,6 @@ export function selectElementByTreeLevelSelectRule (groupRule, entries) {
   }
   let selectedNodes = []
   console.log('entries', entries)
-  debugger
   for (let entryNode of entries) {
     let excludedNodes = []
     console.log('excludes', excludes)

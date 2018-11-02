@@ -180,8 +180,12 @@
       change_javascript_enable () {
         chrome.tabs.get(chrome.devtools.inspectedWindow.tabId,
           (tab) => {
-            let url = tab.url.split('?')[0].split('#')[0]
-            url = url + (url[url.length - 1] === '/' ? '*' : '/*')
+            console.log(tab.url)
+            let tmp = tab.url.split('//')
+            const schema = tmp[0]
+            const netlocal = tmp[1].split('/')[0]
+            let url = schema + '//' + netlocal + '/*'
+            console.log(url)
 
             if (!this.ready) {
               console.log('not ready')
@@ -214,21 +218,34 @@
         let relativeRootInfo = generateTreeLevelSelectRuleFromTreeData(node.parent, [])
         // if node is the top level node, relativeRootInfo is []
         if (relativeRootInfo.length === 0) {
-          relativeRootInfo = {
+          relativeRootInfo = [{
             includes: [],
             excludes: [],
             children: []
-          }
+          }]
         }
         console.log('relativeRootInfo', relativeRootInfo)
-        let b64 = Base64.encode(JSON.stringify(relativeRootInfo))
+        let b64 = Base64.encode(JSON.stringify(relativeRootInfo[0]))
         chrome.devtools.inspectedWindow.eval('_generateRelXpath($0,"' + b64 + '")', {useContentScriptContext: true}, (xpath) => {
           this.$set(data, 'xpath', xpath)
         })
       },
 
       handleHighlightHover (node, data) {
-        let ret = generateTreeLevelSelectRuleFromTreeData(node, [])
+        let ret
+        if (data.fieldtype === 'f_group') {
+          ret = generateTreeLevelSelectRuleFromTreeData(node, [])
+        } else if (data.fieldtype === 'f_include' || data.fieldtype === 'f_exclude') {
+          ret = generateTreeLevelSelectRuleFromTreeData(node, [])
+        } else {
+          ret = generateTreeLevelSelectRuleFromTreeData(
+            node,
+            [{
+              includes: [data.xpath],
+              excludes: [],
+              children: []
+            }])
+        }
         ret = ret[0]
         console.log(ret)
         backgroundPageConnection.postMessage({
